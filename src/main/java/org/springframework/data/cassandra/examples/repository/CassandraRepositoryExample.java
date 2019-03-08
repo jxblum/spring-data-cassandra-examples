@@ -2,28 +2,21 @@ package org.springframework.data.cassandra.examples.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.datastax.driver.core.Cluster;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
-import org.springframework.data.cassandra.config.CassandraClusterFactoryBean;
-import org.springframework.data.cassandra.config.CassandraSessionFactoryBean;
-import org.springframework.data.cassandra.config.SchemaAction;
-import org.springframework.data.cassandra.convert.CassandraConverter;
-import org.springframework.data.cassandra.convert.MappingCassandraConverter;
+import org.springframework.data.cassandra.config.AbstractSessionConfiguration;
 import org.springframework.data.cassandra.examples.core.io.IOUtils;
 import org.springframework.data.cassandra.examples.core.model.Person;
-import org.springframework.data.cassandra.mapping.BasicCassandraMappingContext;
-import org.springframework.data.cassandra.mapping.CassandraMappingContext;
-import org.springframework.data.cassandra.repository.TypedIdCassandraRepository;
+import org.springframework.data.cassandra.repository.CassandraRepository;
 import org.springframework.data.cassandra.repository.config.EnableCassandraRepositories;
-
-import com.datastax.driver.core.Cluster;
 
 @SpringBootApplication
 @EnableCassandraRepositories
@@ -49,12 +42,14 @@ public class CassandraRepositoryExample implements CommandLineRunner {
 	private PersonRepository personRepository;
 
 	public void run(String[] args) throws Exception {
+
 		try {
-			Person insertedJonDoe = personRepository.save(Person.create("Jon Doe", 42));
+
+			Person insertedJonDoe = this.personRepository.save(Person.create("Jon Doe", 42));
 
 			LOGGER.info("Inserted [{}]", insertedJonDoe);
 
-			Person queriedJonDoe = personRepository.findOne(insertedJonDoe.getId());
+			Person queriedJonDoe = this.personRepository.findById(insertedJonDoe.getId()).orElse(null);
 
 			LOGGER.info("Query Result [{}]", queriedJonDoe);
 
@@ -67,48 +62,28 @@ public class CassandraRepositoryExample implements CommandLineRunner {
 	}
 }
 
-interface PersonRepository extends TypedIdCassandraRepository<Person, String> {
-}
+interface PersonRepository extends CassandraRepository<Person, String> { }
 
 @Configuration
 @SuppressWarnings("unused")
-class CassandraConfiguration {
+class CassandraConfiguration extends AbstractSessionConfiguration {
 
 	@Autowired
 	Environment env;
 
-	@Bean
-	CassandraClusterFactoryBean cluster() {
-		CassandraClusterFactoryBean cassandraCluster = new CassandraClusterFactoryBean();
-
-		cassandraCluster.setContactPoints(env.getProperty("cassandra.cluster.contact-points",
-			CassandraRepositoryExample.HOSTNAME));
-		cassandraCluster.setPort(env.getProperty("cassandra.cluster.port", Integer.TYPE,
-			CassandraRepositoryExample.DEFAULT_PORT));
-
-		return cassandraCluster;
+	@Override
+	protected String getContactPoints() {
+		return env.getProperty("cassandra.cluster.contact-points", CassandraRepositoryExample.HOSTNAME);
 	}
 
-	@Bean
-	CassandraMappingContext mappingContext() {
-		return new BasicCassandraMappingContext();
+	@Override
+	protected String getKeyspaceName() {
+		return env.getProperty("cassandra.keyspace", CassandraRepositoryExample.KEYSPACE_NAME);
 	}
 
-	@Bean
-	CassandraConverter converter() {
-		return new MappingCassandraConverter(mappingContext());
+	@Override
+	protected int getPort() {
+		return env.getProperty("cassandra.cluster.port", Integer.TYPE, CassandraRepositoryExample.DEFAULT_PORT);
 	}
 
-	@Bean
-	CassandraSessionFactoryBean session() throws Exception {
-		CassandraSessionFactoryBean cassandraSession = new CassandraSessionFactoryBean();
-
-		cassandraSession.setCluster(cluster().getObject());
-		cassandraSession.setConverter(converter());
-		cassandraSession.setKeyspaceName(env.getProperty("cassandra.keyspace",
-			CassandraRepositoryExample.KEYSPACE_NAME));
-		cassandraSession.setSchemaAction(SchemaAction.NONE);
-
-		return cassandraSession;
-	}
 }

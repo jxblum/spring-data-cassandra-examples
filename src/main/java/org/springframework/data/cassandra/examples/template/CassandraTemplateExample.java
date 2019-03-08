@@ -5,24 +5,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.net.UnknownHostException;
 import java.util.Collections;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.cassandra.core.RowMapper;
-import org.springframework.cassandra.support.exception.CassandraTypeMismatchException;
-import org.springframework.data.cassandra.core.CassandraOperations;
-import org.springframework.data.cassandra.core.CassandraTemplate;
-import org.springframework.data.cassandra.examples.core.io.IOUtils;
-import org.springframework.data.cassandra.examples.core.model.Person;
-import org.springframework.data.cassandra.examples.core.net.NetworkUtils;
-import org.springframework.data.cassandra.mapping.Table;
-import org.springframework.util.StringUtils;
-
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.DriverException;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
 import com.datastax.driver.core.querybuilder.Select;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.cassandra.CassandraTypeMismatchException;
+import org.springframework.data.cassandra.core.CassandraOperations;
+import org.springframework.data.cassandra.core.CassandraTemplate;
+import org.springframework.data.cassandra.core.cql.RowMapper;
+import org.springframework.data.cassandra.core.mapping.Table;
+import org.springframework.data.cassandra.examples.core.io.IOUtils;
+import org.springframework.data.cassandra.examples.core.model.Person;
+import org.springframework.data.cassandra.examples.core.net.NetworkUtils;
+import org.springframework.util.StringUtils;
 
 public class CassandraTemplateExample {
 
@@ -42,9 +42,10 @@ public class CassandraTemplateExample {
 	static Cluster cluster;
 
 	public static void main(String[] args) throws UnknownHostException {
+
 		try {
-			CassandraOperations template = new CassandraTemplate(
-				connect(HOSTNAME, KEYSPACE_NAME));
+
+			CassandraOperations template = new CassandraTemplate(connect(HOSTNAME, KEYSPACE_NAME));
 
 			Person insertedJonDoe = template.insert(Person.create("Jane Doe", 37));
 
@@ -54,7 +55,7 @@ public class CassandraTemplateExample {
 
 			LOGGER.info("CQL SELECT [{}]", personQuery);
 
-			Person queriedJonDoe = template.queryForObject(personQuery, personRowMapper());
+			Person queriedJonDoe = template.getCqlOperations().queryForObject(personQuery, personRowMapper());
 
 			LOGGER.info("Query Result [{}]", queriedJonDoe);
 
@@ -80,9 +81,13 @@ public class CassandraTemplateExample {
 	}
 
 	protected static RowMapper<Person> personRowMapper() {
+
 		return new RowMapper<Person>() {
+
 			public Person mapRow(Row row, int rowNum) throws DriverException {
+
 				try {
+
 					LOGGER.debug("row [{}] @ index [{}]", row, rowNum);
 
 					Person person = Person.create(row.getString(ID_COLUMN_NAME),
@@ -92,18 +97,21 @@ public class CassandraTemplateExample {
 
 					return person;
 				}
-				catch (Exception e) {
+				catch (Exception cause) {
 					throw new CassandraTypeMismatchException(String.format(
 						"failed to map row [%1$] @ index [%2$d] to object of type [%3$s]",
-						row, rowNum, Person.class.getName()), e);
+						row, rowNum, Person.class.getName()), cause);
 				}
 			}
 		};
 	}
 
 	protected static Select selectPerson(String personId) {
+
 		Select selectStatement = QueryBuilder.select().from(toTableName(Person.class));
+
 		selectStatement.where(QueryBuilder.eq(ID_COLUMN_NAME, personId));
+
 		return selectStatement;
 	}
 
@@ -113,10 +121,11 @@ public class CassandraTemplateExample {
 	}
 
 	protected static String toTableName(Class<?> type) {
+
 		Table tableAnnotation = type.getAnnotation(Table.class);
 
-		return (tableAnnotation != null && StringUtils.hasText(tableAnnotation.value())
-			? tableAnnotation.value() : type.getSimpleName());
+		return tableAnnotation != null && StringUtils.hasText(tableAnnotation.value())
+			? tableAnnotation.value()
+			: type.getSimpleName();
 	}
-
 }
